@@ -1,3 +1,27 @@
+<p align="center">
+  <a href="#">
+    <img src="https://img.shields.io/badge/Core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Core">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/Templates-Jinja2-B41717?style=for-the-badge&logo=jinja&logoColor=white" alt="Templates">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/Evasion-Hell's%20Gate-red?style=for-the-badge" alt="Evasion: Hell's Gate">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/OpSec-ETW%20Patching-critical?style=for-the-badge" alt="OpSec: ETW Patching">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/Build-Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-black?style=for-the-badge" alt="License">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/Release-v1.0-success?style=for-the-badge" alt="Version">
+  </a>
+</p>
+
 # MultiLangPayloadCLI
 
 **Multi-Language Offensive Security Toolkit & C2 Platform**
@@ -106,3 +130,8 @@ This tool is developed for **educational purposes** and **authorized Red Team op
 - **DO NOT** use this tool on systems you do not have explicit, written permission to test.
 - The authors are not responsible for any damage or legal consequences resulting from the misuse of this software.
 - Malicious use of this software is illegal and punishable by law.
+
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
