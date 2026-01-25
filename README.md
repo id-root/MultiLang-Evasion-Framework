@@ -106,5 +106,3 @@ This tool is developed for **educational purposes** and **authorized Red Team op
 - **DO NOT** use this tool on systems you do not have explicit, written permission to test.
 - The authors are not responsible for any damage or legal consequences resulting from the misuse of this software.
 - Malicious use of this software is illegal and punishable by law.
-
-**By using this software, you agree to these terms.**
