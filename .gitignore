@@ -1,0 +1,28 @@
+# --- Python Garbage ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Operational Data (Secrets) ---
+logs/*
+!logs/.gitkeep
+reports/*
+!reports/.gitkeep
+activity.log
+*.db
+*.sqlite
+
+# --- Generated Binaries (Malware) ---
+output/*
+!output/.gitkeep
+*.exe
+*.dll
+*.bin
+*.elf
+
+# --- System ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
