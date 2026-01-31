@@ -29,7 +29,6 @@
 A professional-grade framework for generating, obfuscating, and managing offensive security payloads. Designed for Red Team operations, it emphasizes OpSec, evasion, and modern C2 tradecraft.
 
 ## 🚀 Features
-
 ### **Advanced Evasion & OpSec**
 - **Indirect Syscalls (Hell's Gate)**: Bypasses user-mode EDR hooks by resolving SSNs dynamically and executing syscalls via inline assembly.
 - **BlockDLLs Policy**: Prevents non-Microsoft DLLs from injecting into the payload process (`0x100000000000`).
